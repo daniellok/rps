@@ -1,0 +1,14 @@
+* Rock-paper-scissor Dev Roadmap
+** GENERAL
+*** TODO command line parsing
+*** TODO rps --help
+** SERVER
+*** TODO hosting capability (allowing incoming connections)
+*** TODO lobby functionality (users should connect and create lobby)
+*** TODO connecting to lobbies
+*** TODO starting game
+** CLIENT
+*** TODO establish connection with server
+*** TODO create lobby with server
+*** TODO accept/reject matchups
+*** TODO send move
