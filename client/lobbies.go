@@ -29,15 +29,21 @@ func joinLobby() {
 	writer.WriteByte(types.JOIN_LOBBY)
 	writer.Flush()
 
+	lobbies := retrieveLobbies()
+	fmt.Println(lobbies)
+
 	fmt.Println("Waiting to join a lobby...")
 	waitForGameStart()
 }
 
-func retrieveLobbies() {
-	var lobbies []types.Lobby
-	dec := gob.NewDecoder(conn)
-	
-	
+func retrieveLobbies() []types.MarshallableLobby {
+	lobbies := []types.MarshallableLobby{}
+
+	decoder := gob.NewDecoder(conn)
+	err     := decoder.Decode(&lobbies)
+	handleError(err)
+
+	return lobbies
 }
 
 func waitForGameStart() {

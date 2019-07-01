@@ -3,11 +3,12 @@ package server
 import (
 	"net"
 	"bufio"
+	"encoding/gob"
+	"encoding/binary"
 	"github.com/daniellok/rps/types"
-	"github.com/daniellok/rps/utils"
 )
 
-var lobbyList utils.SafeLobbyList
+var lobbyList types.SafeLobbyList
 
 func handleInitialConnect(conn net.Conn) {
 	reader := bufio.NewReader(conn)
@@ -25,7 +26,7 @@ func handleInitialConnect(conn net.Conn) {
 			go createLobby(conn)
 			return
 		} else if b == types.JOIN_LOBBY {
-			go joinFirstLobby(conn)
+			go joinLobby(conn)
 			return
 		} else {
 			writer.WriteByte(types.INVALID_CHOICE)
@@ -35,6 +36,8 @@ func handleInitialConnect(conn net.Conn) {
 
 func createLobby(conn net.Conn) {
 	writer := bufio.NewWriter(conn)
+	reader := bufio.NewReader(conn)
+	
 	err := writer.WriteByte(types.LOBBY_CREATED)
 	if err != nil {
 		logger.Println(conn.RemoteAddr(), "disconnected")
@@ -51,20 +54,43 @@ func createLobby(conn net.Conn) {
 	currentMatchId += 1
 	matchIdMutex.Unlock()
 	
-	lobby := utils.Lobby{
+	lobby := types.Lobby{
 		Player : conn,
+		Name : "Harold Lobby",
 		Id : id,
 	}
 
 	lobbyList.AddLobby(lobby)
 
-	reader := bufio.NewReader(conn)
 	b, err := reader.ReadByte()
 	if err != nil || b != types.RECEIVED_MATCH {
 		logger.Println(conn.RemoteAddr(), "disconnected, cleaning up lobby...")
 		lobbyList.RemoveLobbyWithId(id)
-	}
+	}	
+}
+
+func joinLobby(conn net.Conn) {
+	sendLobbyList(conn)
+	waitForLobbyChoice(conn)
+}
+
+func sendLobbyList(conn net.Conn) {
+	encoder := gob.NewEncoder(conn)
+	marshallable := lobbyList.ToMarshallable()
+	encoder.Encode(marshallable)
+}
+
+func waitForLobbyChoice(conn net.Conn) {
+	reader  := bufio.NewReader(conn)
 	
+	lobbyIdBytes := make([]byte, 8)
+	_, err       := reader.Read(lobbyIdBytes)
+	if err != nil {
+		panic(err)
+	}
+	lobbyId, _   := binary.Uvarint(lobbyIdBytes)
+
+	logger.Println("Lobby", lobbyId, "chosen")
 }
 
 func joinFirstLobby(conn net.Conn) {
