@@ -4,7 +4,6 @@ import (
 	"os"
 	"log"
 	"net"
-	"net/rpc"
 	"sync"
 	"github.com/daniellok/rps/types"
 )
@@ -32,7 +31,6 @@ func RunServer() {
 			logger.Println("Error occured! ", err)
 		}
 		logger.Println("Accepted connection from ", conn.RemoteAddr())
-		go rpc.ServeConn(conn)
 		go handleInitialConnect(conn)
 	}
 }

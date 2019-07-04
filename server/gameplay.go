@@ -78,6 +78,7 @@ func collectMoves(player1 net.Conn, player2 net.Conn) (types.Move, types.Move) {
 }
 
 func handleDisconnects(disconnector net.Conn, otherPlayer net.Conn) {
+	logger.Println(disconnector.RemoteAddr(), "has disconnected")
 	writer := bufio.NewWriter(otherPlayer)
 	
 	writer.WriteByte(types.OPPONENT_DC)
@@ -135,7 +136,8 @@ func sendResults(result1 types.Result, result2 types.Result) {
 	writer1.Flush()
 	writer2.WriteByte(result2.Result)
 	writer2.Flush()
-	
+
+	logger.Println("Results sent")
 	result1.Player.Close()
 	result2.Player.Close()
 }

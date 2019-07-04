@@ -3,6 +3,7 @@ package server
 import (
 	"net"
 	"bufio"
+	"strings"
 	"encoding/gob"
 	"encoding/binary"
 	"github.com/daniellok/rps/types"
@@ -12,25 +13,20 @@ var lobbyList types.SafeLobbyList
 
 func handleInitialConnect(conn net.Conn) {
 	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
 
-	for {
-		b, err := reader.ReadByte()
-		if err != nil {
-			logger.Println(conn.RemoteAddr(), "disconnected")
-			return
-		}
+	b, err := reader.ReadByte()
+	if err != nil {
+		logger.Println(conn.RemoteAddr(), "disconnected")
+		return
+	}
 
-		if b == types.CREATE_LOBBY {
-			logger.Println("Lobby created:", conn.RemoteAddr())
-			go createLobby(conn)
-			return
-		} else if b == types.JOIN_LOBBY {
-			go joinLobby(conn)
-			return
-		} else {
-			writer.WriteByte(types.INVALID_CHOICE)
-		}
+	if b == types.CREATE_LOBBY {
+		createLobby(conn)
+	} else if b == types.JOIN_LOBBY {
+		joinLobby(conn)
+	} else {
+		logger.Println("Someone is trolling")
+		conn.Close()
 	}
 }
 
@@ -38,16 +34,20 @@ func createLobby(conn net.Conn) {
 	writer := bufio.NewWriter(conn)
 	reader := bufio.NewReader(conn)
 	
-	err := writer.WriteByte(types.LOBBY_CREATED)
+	err := writer.WriteByte(types.LOBBY_NAME)
+	writer.Flush()
 	if err != nil {
 		logger.Println(conn.RemoteAddr(), "disconnected")
 		return
 	}
-	err = writer.Flush()
+	
+	name, err := reader.ReadString('\n')
 	if err != nil {
 		logger.Println(conn.RemoteAddr(), "disconnected")
 		return
 	}
+	name = strings.TrimSuffix(name, "\n")
+	logger.Println("Creating lobby {", currentMatchId, name, "}")
 
 	matchIdMutex.Lock()
 	id := currentMatchId
@@ -56,17 +56,25 @@ func createLobby(conn net.Conn) {
 	
 	lobby := types.Lobby{
 		Player : conn,
-		Name : "Harold Lobby",
+		Name : name,
 		Id : id,
 	}
 
 	lobbyList.AddLobby(lobby)
 
+	err = writer.WriteByte(types.LOBBY_CREATED)
+	writer.Flush()
+	if err != nil {
+		logger.Println(conn.RemoteAddr(), "disconnected")
+		lobbyList.RemoveLobbyWithId(id)
+		return
+	}
+
 	b, err := reader.ReadByte()
 	if err != nil || b != types.RECEIVED_MATCH {
 		logger.Println(conn.RemoteAddr(), "disconnected, cleaning up lobby...")
 		lobbyList.RemoveLobbyWithId(id)
-	}	
+	}
 }
 
 func joinLobby(conn net.Conn) {
@@ -81,16 +89,21 @@ func sendLobbyList(conn net.Conn) {
 }
 
 func waitForLobbyChoice(conn net.Conn) {
-	reader  := bufio.NewReader(conn)
+	reader := bufio.NewReader(conn)
 	
 	lobbyIdBytes := make([]byte, 8)
 	_, err       := reader.Read(lobbyIdBytes)
 	if err != nil {
-		panic(err)
+		logger.Println(err)
+		return
 	}
-	lobbyId, _   := binary.Uvarint(lobbyIdBytes)
+	lobbyId, _ := binary.Uvarint(lobbyIdBytes)
+	lobby, err := lobbyList.RemoveLobbyWithId(lobbyId)
+	if err != nil {
+		logger.Println("Lobby", lobbyId, "is no longer available")
+	}
 
-	logger.Println("Lobby", lobbyId, "chosen")
+	executeGame(lobby.Player, conn)
 }
 
 func joinFirstLobby(conn net.Conn) {

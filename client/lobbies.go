@@ -4,24 +4,38 @@ import (
 	"os"
 	"fmt"
 	"encoding/gob"
+	"encoding/binary"
 	"github.com/daniellok/rps/types"
 )
 
 func createLobby() {
-	writer.WriteByte(types.CREATE_LOBBY)
-	writer.Flush()
-	fmt.Println("Waiting for response from server...")
-	
-	b, err := reader.ReadByte()
+	var name string
+	fmt.Print("What do you want to name your lobby?\n> ")
+	_, err := fmt.Scanln(&name)
 	handleError(err)
 	
-	if b == types.LOBBY_CREATED {
-		fmt.Println("Lobby created! Waiting for someone to join...")
-	} else {
+	writer.WriteByte(types.CREATE_LOBBY)
+	writer.Flush()
+
+	b, err := reader.ReadByte()
+	handleError(err)
+	if b != types.LOBBY_NAME {
 		fmt.Println("Something went wrong!")
 		os.Exit(1)
 	}
 
+	_, err = writer.WriteString(name + "\n")
+	writer.Flush()
+	handleError(err)
+	
+	b, err = reader.ReadByte()
+	handleError(err)
+	if b != types.LOBBY_CREATED {
+		fmt.Println("Something went wrong!")
+		os.Exit(1)
+	}
+
+	fmt.Println("lobby created!")
 	waitForGameStart()
 }
 
@@ -31,6 +45,15 @@ func joinLobby() {
 
 	lobbies := retrieveLobbies()
 	fmt.Println(lobbies)
+
+	var id uint64
+	fmt.Print("Which lobby ID do you want to join?\n> ")
+	_, err := fmt.Scan(&id)
+	idBytes := make([]byte, 8)
+	binary.PutUvarint(idBytes, id)
+	_, err = writer.Write(idBytes)
+	writer.Flush()
+	handleError(err)
 
 	fmt.Println("Waiting to join a lobby...")
 	waitForGameStart()
@@ -47,6 +70,7 @@ func retrieveLobbies() []types.MarshallableLobby {
 }
 
 func waitForGameStart() {
+	fmt.Println("Waiting for game start")
 	b, err := reader.ReadByte()
 	handleError(err)
 	

@@ -3,6 +3,7 @@ package types
 import (
 	"net"
 	"sync"
+	"errors"
 )
 
 type Lobbies int
@@ -23,17 +24,18 @@ type SafeLobbyList struct {
 	Mutex   sync.Mutex
 }
 
-func (sll *SafeLobbyList) RemoveLobbyWithId(id uint64) {
+func (sll *SafeLobbyList) RemoveLobbyWithId(id uint64) (Lobby, error) {
 	sll.Mutex.Lock()
 	for i, lobby := range sll.Lobbies {
 		if lobby.Id == id {
 			lobbies := append(sll.Lobbies[:i], sll.Lobbies[i+1:]...)
 			sll.Lobbies = lobbies
 			sll.Mutex.Unlock()
-			return
+			return lobby, nil
 		}
 	}
 	sll.Mutex.Unlock()
+	return Lobby{}, errors.New("No lobby with that ID exists")
 }
 
 func (sll *SafeLobbyList) AddLobby(lobby Lobby) {
